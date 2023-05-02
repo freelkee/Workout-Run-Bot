@@ -1,6 +1,5 @@
 package com.telegram.freelkee.workoutrunbot.model;
 
-import com.telegram.freelkee.workoutrunbot.model.training.Training;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -31,12 +30,14 @@ public class User {
 
     @Override
     public String toString() {
-        return "User{" +
-                "chatId=" + chatId +
-                ", firstName='" + firstName + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", userName='" + userName + '\'' +
-                ", registeredAt=" + registeredAt +
-                '}';
+        return "User ID: " + chatId + "\n" +
+                "First Name: " + firstName + "\n" +
+                "Last Name: " + lastName + "\n" +
+                "Username: " + userName + "\n" +
+                "Registered At: " + registeredAt + "\n" +
+                "Condition: " + condition + "\n" +
+                "Weight: " + weight + "\n" +
+                "Height: " + height + "\n" +
+                "Age: " + age;
     }
 }
