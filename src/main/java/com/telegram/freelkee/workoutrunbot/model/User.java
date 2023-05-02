@@ -23,11 +23,10 @@ public class User {
     private int condition;
     private Integer weight;
     private Integer height;
-
+    private Integer age;
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
     private List<Training> trainings;
-
 
 
     @Override

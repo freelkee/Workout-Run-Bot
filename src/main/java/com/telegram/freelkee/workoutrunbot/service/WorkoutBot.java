@@ -39,6 +39,7 @@ import java.util.Optional;
 @Slf4j
 public class WorkoutBot extends TelegramLongPollingBot {
 
+
     @Autowired
     private UserRepository userRepository;
 
@@ -56,9 +57,9 @@ public class WorkoutBot extends TelegramLongPollingBot {
 
             Type /start to see a welcome message.
 
-            Type /myworkouts to see your workout history.
-
             Type /newworkout to add a new workout to your diary.
+                        
+            Type /myworkouts to see your workout history.
 
             Type /statistics to view your workout statistics.
 
@@ -74,13 +75,17 @@ public class WorkoutBot extends TelegramLongPollingBot {
             Duration (in minutes)
             Date (dd.MM.YY/HH.mm)      \s
             Average Heart Rate (BPM, send "null" if you don't have)
-            Distance (in meters, send "null" if you don't hav)
+            Distance (in meters, send "null" if you don't have)
                         
             If you want to exit without saving, write "exit".
             """;
     static final String YES_BUTTON = "YES_BUTTON";
     static final String NO_BUTTON = "NO_BUTTON";
     static final String DELETE_BUTTON = "DELETE_BUTTON";
+    static final String WEIGHT_BUTTON = "WEIGHT_BUTTON";
+    static final String HEIGHT_BUTTON = "HEIGHT_BUTTON";
+    private static final String AGE_BUTTON = "AGE_BUTTON";
+
 
     static final String ERROR_TEXT = "Error occurred: ";
 
@@ -88,8 +93,8 @@ public class WorkoutBot extends TelegramLongPollingBot {
         this.config = config;
         List<BotCommand> listOfCommands = new ArrayList<>();
         listOfCommands.add(new BotCommand("/start", "get a welcome message"));
-        listOfCommands.add(new BotCommand("/myworkouts", "get your data workouts"));
         listOfCommands.add(new BotCommand("/newworkout", "record a new workout"));
+        listOfCommands.add(new BotCommand("/myworkouts", "get your data workouts"));
         listOfCommands.add(new BotCommand("/statistics", "get your stats"));
         listOfCommands.add(new BotCommand("/help", "info how to use this bot"));
         listOfCommands.add(new BotCommand("/settings", "set your preferences"));
@@ -115,8 +120,9 @@ public class WorkoutBot extends TelegramLongPollingBot {
     @Override
     public void onUpdateReceived(Update update) {
         Message message = update.getMessage();
-        User user = userRepository.findByChatId(message.getChatId());
+
         if (update.hasMessage() && message.hasText()) {
+            User user = userRepository.findByChatId(message.getChatId());
             String messageText = message.getText();
             long chatId = message.getChatId();
 
@@ -151,11 +157,20 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     userRepository.save(user);
                 }
                 newWorkoutCommandReceived(message, user);
+            } else if (user.getCondition() >= 10 && user.getCondition() < 20) {
+                if (messageText.equals("exit")) {
+                    user.setCondition(0);
+                    userRepository.save(user);
+                }
+
+                setting(message, user);
             }
         } else if (update.hasCallbackQuery()) {
             CallbackQuery callbackQuery = update.getCallbackQuery();
             long messageId = callbackQuery.getMessage().getMessageId();
             long chatId = callbackQuery.getMessage().getChatId();
+
+            User user = userRepository.findByChatId(chatId);
 
             String callbackData = callbackQuery.getData();
             EditMessageText editMessageText = new EditMessageText();
@@ -174,6 +189,51 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     String text = "You deleted your data";
                     executeEditMessageText((int) messageId, chatId, editMessageText, text);
                 }
+                case WEIGHT_BUTTON -> {
+                    user.setCondition(10);
+                    String text = "Enter your weight in kilograms";
+                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                    userRepository.save(user);
+                }
+                case HEIGHT_BUTTON -> {
+                    user.setCondition(11);
+                    String text = "Enter your height in centimeters";
+                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                    userRepository.save(user);
+                }
+                case AGE_BUTTON -> {
+                    user.setCondition(12);
+                    String text = "Enter your age in years";
+                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                    userRepository.save(user);
+                }
+            }
+        }
+    }
+
+    private void setting(Message message, User user) {
+        Long chatId = user.getChatId();
+        String text = message.getText();
+        switch (user.getCondition()) {
+            case 0 -> sendMessage(chatId, "Exit from setting");
+            case 10 -> {
+                user.setWeight(Integer.parseInt(text));
+                user.setCondition(0);
+                userRepository.save(user);
+                sendMessage(chatId, "Your data was update");
+                startCommandReceived(chatId, user.getUserName());
+            }
+            case 11 -> {
+                user.setHeight(Integer.parseInt(text));
+                user.setCondition(0);
+                userRepository.save(user);
+                sendMessage(chatId, "Your data was update");
+            }
+            case 12 -> {
+                user.setAge(Integer.parseInt(text));
+                user.setCondition(0);
+                userRepository.save(user);
+                sendMessage(chatId, "Your data was update");
             }
         }
     }
@@ -217,8 +277,9 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     training.setDistance(null);
                     training.setSpeed(null);
                 }
-                //Link to the source: http://frs24.ru/st/kalkulator-rashoda-kalorij-po-pulsu/
+
                 try {
+                    //Link to the source: http://frs24.ru/st/kalkulator-rashoda-kalorij-po-pulsu/
                     int calories = (int) Math.round(0.014 * user.getWeight() * training.getDuration() *
                             (0.12 * training.getAverageHeartRate() - 7));
                     training.setCalories(calories);
@@ -231,7 +292,9 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 user.setCondition(0);
                 trainingRepository.save(training);
                 userRepository.save(user);
+                log.info("User " + user.getUserName() + "  recorded workout " + training.getId());
                 sendMessage(chatId, "Your workout was recorded.");
+
             }
             default -> sendMessage(chatId, "Sorry,command was not recognized");
         }
@@ -313,6 +376,9 @@ public class WorkoutBot extends TelegramLongPollingBot {
     }
 
     private void registerUser(Message message) {
+        String answer = EmojiParser.parseToUnicode("Hi, " + message.getChat().getUserName() + ", welcome to the workout tracking app!");
+        sendMessage(message.getChatId(), answer);
+
         if (userRepository.findById(message.getChatId()).isEmpty()) {
             long chatId = message.getChatId();
             Chat chat = message.getChat();
@@ -330,53 +396,60 @@ public class WorkoutBot extends TelegramLongPollingBot {
     }
 
     private void startCommandReceived(long chatId, String name) {
-
-        String answer = EmojiParser.parseToUnicode("Hi, " + name + ", nice to meet you!");
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
-
-// Level 1 Buttons
         List<InlineKeyboardButton> level1 = new ArrayList<>();
+        boolean flag = false;
 
-        var button1 = new InlineKeyboardButton();
-        button1.setText("Level 1 Button 1");
-        button1.setCallbackData("level1_button1");
-        level1.add(button1);
-
-        var button2 = new InlineKeyboardButton();
-        button2.setText("Level 1 Button 2");
-        button2.setCallbackData("level1_button2");
-        level1.add(button2);
+        if (userRepository.findByChatId(chatId).getWeight() == null) {
+            flag = true;
+            var button1 = new InlineKeyboardButton();
+            button1.setText("Weight settings");
+            button1.setCallbackData(WEIGHT_BUTTON);
+            level1.add(button1);
+        }
+        if (userRepository.findByChatId(chatId).getHeight() == null) {
+            flag = true;
+            var button2 = new InlineKeyboardButton();
+            button2.setText("Height settings");
+            button2.setCallbackData(HEIGHT_BUTTON);
+            level1.add(button2);
+        }
+        if (userRepository.findByChatId(chatId).getAge() == null) {
+            flag = true;
+            var button3 = new InlineKeyboardButton();
+            button3.setText("Age settings");
+            button3.setCallbackData(AGE_BUTTON);
+            level1.add(button3);
+        }
 
         rows.add(level1);
-
-// Level 2 Buttons
-        List<InlineKeyboardButton> level2 = new ArrayList<>();
-
-        var button3 = new InlineKeyboardButton();
-        button3.setText("Level 2 Button 1");
-        button3.setCallbackData("level2_button1");
-        level2.add(button3);
-
-
-        var button4 = new InlineKeyboardButton();
-        button4.setText("Level 2 Button 2");
-        button4.setCallbackData("level2_button2");
-        level2.add(button4);
-
-        rows.add(level2);
-
-
+//// Level 2 Buttons
+//        List<InlineKeyboardButton> level2 = new ArrayList<>();
+//
+//        var button3 = new InlineKeyboardButton();
+//        button3.setText("Level 2 Button 1");
+//        button3.setCallbackData("level2_button1");
+//        level2.add(button3);
+//
+//
+//        var button4 = new InlineKeyboardButton();
+//        button4.setText("Level 2 Button 2");
+//        button4.setCallbackData("level2_button2");
+//        level2.add(button4);
+//
+//        rows.add(level2);
         inlineKeyboardMarkup.setKeyboard(rows);
 
-        SendMessage message = new SendMessage();
-        message.setChatId(chatId);
-        message.setText("Choose an option:");
-        message.setReplyMarkup(inlineKeyboardMarkup);
+        if (flag) {
+            SendMessage message = new SendMessage();
+            message.setChatId(chatId);
+            message.setText("Please enter your parameters for more accurate tracking");
+            message.setReplyMarkup(inlineKeyboardMarkup);
+            executor(message);
+        }
 
 
-        sendMessage(chatId, answer);
-        executor(message);
         log.info("Replied to user " + name);
 
 
