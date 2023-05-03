@@ -36,6 +36,7 @@ import java.util.*;
 @Slf4j
 public class WorkoutBot extends TelegramLongPollingBot {
 
+
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -80,6 +81,8 @@ public class WorkoutBot extends TelegramLongPollingBot {
     static final String WEIGHT_BUTTON = "WEIGHT_BUTTON";
     static final String HEIGHT_BUTTON = "HEIGHT_BUTTON";
     private static final String AGE_BUTTON = "AGE_BUTTON";
+    private static final String MYDATA_BUTTON = "MYDATA_BUTTON";
+    private static final String API_BUTTON = "API_BUTTON";
 
 
     static final String ERROR_TEXT = "Error occurred: ";
@@ -127,7 +130,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 for (User user1 : users) {
                     sendMessage(user1.getChatId(), textToSend);
                 }
-            } else if (user.getCondition() == 0) {
+            } else if (user == null ||  user.getCondition() == 0) {
                 switch (messageText.trim()) {
                     case "/start" -> {
                         registerUser(message);
@@ -135,18 +138,23 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     }
                     case "/help" -> sendMessage(chatId, HELP_TEXT);
                     case "/mydata" -> myDataCommandReceived(message);
-                    case "/deletedata" -> deleteData(message);
+                    case "/deletedata" -> deleteData(chatId);
                     case "/newworkout" -> {
+                        assert user != null;
                         user.setCondition(1);
                         userRepository.save(user);
                         newWorkoutCommandReceived(message, user);
                     }
                     case "/myworkouts" -> {
+                        assert user != null;
                         user.setCondition(20);
                         userRepository.save(user);
                         myWorkoutCommandReceived(message, user);
                     }
-//                    case "/settings" -> settingsCommandRecieved(message);
+                    case "/settings" -> {
+                        assert user != null;
+                        settingsCommandRecieved(user);
+                    }
 
                     default -> sendMessage(chatId, "Sorry,command was not recognized");
                 }
@@ -192,9 +200,10 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     executeEditMessageText((int) messageId, chatId, editMessageText, text);
                 }
                 case DELETE_BUTTON -> {
-                    deleteDataCommandReceived(update.getMessage());
-                    String text = "You deleted your data";
-                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                    if (deleteDataCommandReceived(chatId)) {
+                        String text = "You deleted your data";
+                        executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                    }
                 }
                 case WEIGHT_BUTTON -> {
                     user.setCondition(10);
@@ -214,8 +223,78 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     executeEditMessageText((int) messageId, chatId, editMessageText, text);
                     userRepository.save(user);
                 }
+                case MYDATA_BUTTON -> {
+                    user.setCondition(0);
+                    String text = "This is all the data we have about you:\n" + user;
+                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                    userRepository.save(user);
+                }
+                case "DEL" -> {
+                    user.setCondition(14);
+                    deleteData(chatId);
+                    userRepository.save(user);
+                }
+                case API_BUTTON -> {
+                    user.setCondition(0);
+                    String text = "This option is in development.";
+                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                    userRepository.save(user);
+                }
             }
         }
+    }
+
+    private void settingsCommandRecieved(User user) {
+        InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
+        List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+        List<InlineKeyboardButton> level1 = new ArrayList<>();
+
+        var button1 = new InlineKeyboardButton();
+        button1.setText("Set weight");
+        button1.setCallbackData(WEIGHT_BUTTON);
+        level1.add(button1);
+
+        var button2 = new InlineKeyboardButton();
+        button2.setText("Set height");
+        button2.setCallbackData(HEIGHT_BUTTON);
+        level1.add(button2);
+
+        var button3 = new InlineKeyboardButton();
+        button3.setText("Set age");
+        button3.setCallbackData(AGE_BUTTON);
+        level1.add(button3);
+
+        rows.add(level1);
+
+        // Level 2 Buttons
+        List<InlineKeyboardButton> level2 = new ArrayList<>();
+
+        var button4 = new InlineKeyboardButton();
+        button4.setText("My data");
+        button4.setCallbackData(MYDATA_BUTTON);
+        level2.add(button4);
+
+
+        var button5 = new InlineKeyboardButton();
+        button5.setText("Delete my data");
+        button5.setCallbackData("DEL");
+        level2.add(button5);
+
+        var button6 = new InlineKeyboardButton();
+        button6.setText("Connect a third-party API");
+        button6.setCallbackData(API_BUTTON);
+        level2.add(button6);
+
+        rows.add(level2);
+        inlineKeyboardMarkup.setKeyboard(rows);
+
+        SendMessage message = new SendMessage();
+        message.setChatId(user.getChatId());
+        message.setText("Select the parameter you want to change.");
+        message.setReplyMarkup(inlineKeyboardMarkup);
+        executor(message);
+
+        log.info("Replied to user " + user.getUserName());
     }
 
     private void myWorkoutCommandReceived(Message message, User user) {
@@ -236,7 +315,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                         .sorted(Comparator.comparing(Training::getDate).reversed())
                         .limit(Integer.parseInt(text))
                         .toList();
-                for (Training training : trainings){
+                for (Training training : trainings) {
                     sendMessage(chatId, training.toString());
                 }
                 user.setCondition(0);
@@ -360,8 +439,8 @@ public class WorkoutBot extends TelegramLongPollingBot {
         }
     }
 
-    private void deleteData(Message inMessage) {
-        long chatId = inMessage.getChatId();
+    private void deleteData(long chatId) {
+
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText("Do you really want to delete your data? THE DATA WILL BE IRRETRIEVABLY LOST!");
@@ -387,15 +466,16 @@ public class WorkoutBot extends TelegramLongPollingBot {
         executor(message);
     }
 
-    private void deleteDataCommandReceived(Message message) {
-        Optional<User> userOptional = userRepository.findById(message.getChatId());
+    private boolean deleteDataCommandReceived(long chatId) {
+        Optional<User> userOptional = userRepository.findById(chatId);
         if (userOptional.isPresent()) {
             User user = userOptional.get();
             userRepository.delete(user);
-            sendMessage(message.getChatId(), "Your data was deleted.");
             log.info("User delete data " + user.getUserName());
+            return true;
         } else {
-            sendMessage(message.getChatId(), "Your data is not in the storage.");
+            sendMessage(chatId, "Your data is not in the storage.");
+            return false;
         }
     }
 
@@ -495,7 +575,6 @@ public class WorkoutBot extends TelegramLongPollingBot {
 
 
         log.info("Replied to user " + user.getUserName());
-
 
     }
 
