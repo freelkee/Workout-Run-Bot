@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 
 
 //@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
@@ -31,12 +32,12 @@ public class Training {
     @Override
     public String toString() {
         return "Training ID: " + id + "\n" +
-                "Date: " + date + "\n" +
-                "Duration: " + duration + "\n" +
-                "Calories: " + calories + "\n" +
-                "Average Heart Rate: " + averageHeartRate + "\n" +
-                "Distance: " + distance + " meters" + "\n" +
-                "Speed: " + speed + " km/h" + "\n" +
-                "Training Type: " + trainingType + "\n";
+                "Training Type: " + trainingType + "\n" +
+                "Date: " + new SimpleDateFormat("dd.MM.yyyy/HH.mm").format(date) + "\n" +
+                "Average Heart Rate: " + averageHeartRate + " bpm\n" +
+                "Distance: " + distance + " meters\n" +
+                "Duration: " + duration + "min\n" +
+                "Calories: " + calories + "ccal\n" +
+                "Speed: " + speed + " km/h" + "\n";
     }
 }

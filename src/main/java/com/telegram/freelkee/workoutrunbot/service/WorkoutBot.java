@@ -36,7 +36,7 @@ import java.util.*;
 @Slf4j
 public class WorkoutBot extends TelegramLongPollingBot {
 
-
+    private Map<Long, Long> userUpdateTraining = new HashMap<>();
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -75,6 +75,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                         
             If you want to exit without saving, write "exit".
             """;
+
     static final String YES_BUTTON = "YES_BUTTON";
     static final String NO_BUTTON = "NO_BUTTON";
     static final String DELETE_BUTTON = "DELETE_BUTTON";
@@ -83,6 +84,8 @@ public class WorkoutBot extends TelegramLongPollingBot {
     private static final String AGE_BUTTON = "AGE_BUTTON";
     private static final String MYDATA_BUTTON = "MYDATA_BUTTON";
     private static final String API_BUTTON = "API_BUTTON";
+    private static final String UPDATE_TR_BUTTON = "UPDATE_TR_BUTTON";
+    private static final String DELETE_TR_BUTTON = "DELETE_TR_BUTTON";
 
 
     static final String ERROR_TEXT = "Error occurred: ";
@@ -130,7 +133,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 for (User user1 : users) {
                     sendMessage(user1.getChatId(), textToSend);
                 }
-            } else if (user == null ||  user.getCondition() == 0) {
+            } else if (user == null || user.getCondition() == 0) {
                 switch (messageText.trim()) {
                     case "/start" -> {
                         registerUser(message);
@@ -149,7 +152,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                         assert user != null;
                         user.setCondition(20);
                         userRepository.save(user);
-                        myWorkoutCommandReceived(message, user);
+                        myWorkoutsCommandReceived(message, user);
                     }
                     case "/settings" -> {
                         assert user != null;
@@ -158,13 +161,20 @@ public class WorkoutBot extends TelegramLongPollingBot {
 
                     default -> sendMessage(chatId, "Sorry,command was not recognized");
                 }
-            } else if (user.getCondition() > 0 && user.getCondition() <= 9) {
+            } else if (user.getCondition() > 0 && user.getCondition() <= 4) {
                 //new workout
                 if (messageText.equals("exit")) {
                     user.setCondition(0);
                     userRepository.save(user);
                 }
                 newWorkoutCommandReceived(message, user);
+            } else if (user.getCondition() > 4 && user.getCondition() <= 9) {
+                //update workout
+                if (messageText.equals("exit")) {
+                    user.setCondition(0);
+                    userRepository.save(user);
+                }
+                updateWorkoutCommandReceived(message, user);
             } else if (user.getCondition() >= 10 && user.getCondition() <= 19) {
                 //settings
                 if (messageText.equals("exit")) {
@@ -178,7 +188,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     user.setCondition(0);
                     userRepository.save(user);
                 }
-                myWorkoutCommandReceived(message, user);
+                myWorkoutsCommandReceived(message, user);
             }
         } else if (update.hasCallbackQuery()) {
             CallbackQuery callbackQuery = update.getCallbackQuery();
@@ -190,58 +200,99 @@ public class WorkoutBot extends TelegramLongPollingBot {
             String callbackData = callbackQuery.getData();
             EditMessageText editMessageText = new EditMessageText();
 
-            switch (callbackData) {
-                case YES_BUTTON -> {
-                    String text = "You pressed YES button";
+            if (callbackData.equals(YES_BUTTON)) {
+                String text = "You pressed YES button";
+                executeEditMessageText((int) messageId, chatId, editMessageText, text);
+
+            } else if (callbackData.equals(NO_BUTTON)) {
+                String text = "You pressed NO button";
+                executeEditMessageText((int) messageId, chatId, editMessageText, text);
+
+            } else if (callbackData.equals(DELETE_BUTTON)) {
+                if (deleteDataCommandReceived(chatId)) {
+                    String text = "You deleted your data";
                     executeEditMessageText((int) messageId, chatId, editMessageText, text);
                 }
-                case NO_BUTTON -> {
-                    String text = "You pressed NO button";
+            } else if (callbackData.equals(WEIGHT_BUTTON)) {
+                user.setCondition(10);
+                String text = "Enter your weight in kilograms";
+                executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                userRepository.save(user);
+
+            } else if (callbackData.equals(HEIGHT_BUTTON)) {
+                user.setCondition(11);
+                String text = "Enter your height in centimeters";
+                executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                userRepository.save(user);
+
+            } else if (callbackData.equals(AGE_BUTTON)) {
+                user.setCondition(12);
+                String text = "Enter your age in years";
+                executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                userRepository.save(user);
+
+            } else if (callbackData.equals(MYDATA_BUTTON)) {
+                user.setCondition(0);
+                String text = "This is all the data we have about you:\n" + user;
+                executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                userRepository.save(user);
+
+            } else if (callbackData.equals("DEL")) {
+                user.setCondition(14);
+                deleteData(chatId);
+                userRepository.save(user);
+
+            } else if (callbackData.equals(API_BUTTON)) {
+                user.setCondition(0);
+                String text = "This option is in development.";
+                executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                userRepository.save(user);
+
+            } else if (callbackData.startsWith(UPDATE_TR_BUTTON)) {
+                Long id = Long.parseLong(callbackData.split(" ")[1]);
+                Training training = trainingRepository.findById(id).orElse(null);
+                if (training != null) {
+                    user.setCondition(5);
+                    String text = "This is your training data, copy it and send the corrected version.\n\n" +
+                            training.getTrainingType() + "\n" +
+                            training.getDuration() + "\n" +
+                            new SimpleDateFormat("dd.MM.yyyy/HH.mm").format(training.getDate()) + "\n" +
+                            training.getAverageHeartRate() + "\n" +
+                            training.getDistance() + "\n";
                     executeEditMessageText((int) messageId, chatId, editMessageText, text);
-                }
-                case DELETE_BUTTON -> {
-                    if (deleteDataCommandReceived(chatId)) {
-                        String text = "You deleted your data";
-                        executeEditMessageText((int) messageId, chatId, editMessageText, text);
-                    }
-                }
-                case WEIGHT_BUTTON -> {
-                    user.setCondition(10);
-                    String text = "Enter your weight in kilograms";
-                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
+                    userUpdateTraining.put(user.getChatId(), id);
                     userRepository.save(user);
                 }
-                case HEIGHT_BUTTON -> {
-                    user.setCondition(11);
-                    String text = "Enter your height in centimeters";
-                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
-                    userRepository.save(user);
-                }
-                case AGE_BUTTON -> {
-                    user.setCondition(12);
-                    String text = "Enter your age in years";
-                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
-                    userRepository.save(user);
-                }
-                case MYDATA_BUTTON -> {
-                    user.setCondition(0);
-                    String text = "This is all the data we have about you:\n" + user;
-                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
-                    userRepository.save(user);
-                }
-                case "DEL" -> {
-                    user.setCondition(14);
-                    deleteData(chatId);
-                    userRepository.save(user);
-                }
-                case API_BUTTON -> {
-                    user.setCondition(0);
-                    String text = "This option is in development.";
-                    executeEditMessageText((int) messageId, chatId, editMessageText, text);
-                    userRepository.save(user);
-                }
+
+            } else if (callbackData.startsWith(DELETE_TR_BUTTON)) {
+                Long id = Long.parseLong(callbackData.split(" ")[1]);
+                trainingRepository.deleteById(id);
+                executeEditMessageText((int) messageId, chatId, editMessageText, "Your training was deleted.");
             }
         }
+    }
+
+    private void updateWorkoutCommandReceived(Message message, User user) throws ParseException {
+//        switch (user.getCondition()) {
+//            case 5 -> {
+//                String text = message.getText();
+//                Long trainingId = userUpdateTraining.get(user.getChatId());
+//                Training training = trainingRepository.findById(trainingId).orElse(null);
+//
+//                if (training == null) {
+//                    // Обработка случая, когда объект training не найден
+//                    // Можно выдать сообщение об ошибке или создать новый объект Training
+//                    // training = new Training();
+//                } else {
+//                    setTraining(user, text, training);
+//                    userUpdateTraining.remove(user.getChatId());
+//                    userRepository.save(user);
+//                    log.info("User " + user.getUserName() + " recorded workout " + training.getId());
+//                    sendMessage(message.getChatId(), "Your workout was recorded.");
+//                    trainingRepository.save(training); // Сохранение после обновления объекта Training
+//                }
+//            }
+//        }
     }
 
     private void settingsCommandRecieved(User user) {
@@ -297,7 +348,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
         log.info("Replied to user " + user.getUserName());
     }
 
-    private void myWorkoutCommandReceived(Message message, User user) {
+    private void myWorkoutsCommandReceived(Message message, User user) {
         Long chatId = user.getChatId();
         String text = message.getText();
         switch (user.getCondition()) {
@@ -308,15 +359,46 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 userRepository.save(user);
             }
             case 21 -> {
-                sendMessage(chatId, "Here are your " + text + " workouts sorted by date");
+                int limit = Integer.parseInt(text);
 
                 List<Training> trainings = user.getTrainings()
                         .stream()
                         .sorted(Comparator.comparing(Training::getDate).reversed())
-                        .limit(Integer.parseInt(text))
+                        .limit(limit)
                         .toList();
+
+                if (trainings.size() == 0) {
+                    sendMessage(chatId, "You don't have a record, try to record a new one using the /newworkout command");
+                    user.setCondition(0);
+                    userRepository.save(user);
+                    return;
+                }
+                sendMessage(chatId, "Here are your " + trainings.size() + " workouts sorted by date");
+
+                InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
+                SendMessage sendMessage = new SendMessage();
+                sendMessage.setChatId(chatId);
+
                 for (Training training : trainings) {
-                    sendMessage(chatId, training.toString());
+                    List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+                    List<InlineKeyboardButton> level1 = new ArrayList<>();
+                    var button1 = new InlineKeyboardButton();
+                    var button2 = new InlineKeyboardButton();
+
+                    button1.setText("Update");
+                    button1.setCallbackData(UPDATE_TR_BUTTON + " " + training.getId());
+                    level1.add(button1);
+
+                    button2.setText("Delete");
+                    button2.setCallbackData(DELETE_TR_BUTTON + " " + training.getId());
+                    level1.add(button2);
+
+                    rows.add(level1);
+                    inlineKeyboardMarkup.setKeyboard(rows);
+
+                    sendMessage.setText(training.toString());
+                    sendMessage.setReplyMarkup(inlineKeyboardMarkup);
+                    executor(sendMessage);
                 }
                 user.setCondition(0);
                 userRepository.save(user);
@@ -332,20 +414,20 @@ public class WorkoutBot extends TelegramLongPollingBot {
             case 0 -> sendMessage(chatId, "Exit from setting.");
             case 10 -> {
                 user.setWeight(Integer.parseInt(text));
-                updater(user, chatId);
+                updateData(user, chatId);
             }
             case 11 -> {
                 user.setHeight(Integer.parseInt(text));
-                updater(user, chatId);
+                updateData(user, chatId);
             }
             case 12 -> {
                 user.setAge(Integer.parseInt(text));
-                updater(user, chatId);
+                updateData(user, chatId);
             }
         }
     }
 
-    private void updater(User user, Long chatId) {
+    private void updateData(User user, Long chatId) {
         user.setCondition(0);
         userRepository.save(user);
         sendMessage(chatId, "Your data was update.");
@@ -363,47 +445,8 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 userRepository.save(user);
             }
             case 2 -> {
-                String[] strings = text.split("\n");
                 Training training = new Training();
-                switch (strings[0]) {
-                    case "workout" -> training.setTrainingType("workout");
-                    case "run" -> training.setTrainingType("run");
-                    default -> {
-                        sendMessage(chatId, "Sorry, this type of activity is not supported, " +
-                                "try to enter existing type.");
-                        throw new RuntimeException();
-                    }
-                }
-
-                training.setDuration(Integer.parseInt(strings[1]));
-                training.setDate(convertStringToTimestamp(strings[2]));
-
-                try {
-                    training.setAverageHeartRate(Integer.parseInt(strings[3]));
-                } catch (NumberFormatException e) {
-                    training.setAverageHeartRate(null);
-                }
-
-                try {
-                    training.setDistance(Integer.parseInt(strings[4]));
-                    training.setSpeed(calculateSpeed(training.getDistance(), training.getDuration()));
-                } catch (NumberFormatException e) {
-                    training.setDistance(null);
-                    training.setSpeed(null);
-                }
-
-                try {
-                    //Link to the source: http://frs24.ru/st/kalkulator-rashoda-kalorij-po-pulsu/
-                    int calories = (int) Math.round(0.014 * user.getWeight() * training.getDuration() *
-                            (0.12 * training.getAverageHeartRate() - 7));
-                    training.setCalories(calories);
-                } catch (NumberFormatException e) {
-                    training.setCalories(null);
-                }
-                List<Training> trainings = user.getTrainings();
-                trainings.add(training);
-                user.setTrainings(trainings);
-                user.setCondition(0);
+                setTraining(user, text, training);
                 trainingRepository.save(training);
                 userRepository.save(user);
                 log.info("User " + user.getUserName() + "  recorded workout " + training.getId());
@@ -412,6 +455,42 @@ public class WorkoutBot extends TelegramLongPollingBot {
             }
             default -> sendMessage(chatId, "Sorry,command was not recognized.");
         }
+    }
+
+    private static Training setTraining(User user, String text, Training training) throws ParseException {
+        String[] strings = text.split("\n");
+
+        training.setTrainingType(strings[0]);
+        training.setDuration(Integer.parseInt(strings[1]));
+        training.setDate(convertStringToTimestamp(strings[2]));
+
+        try {
+            training.setAverageHeartRate(Integer.parseInt(strings[3]));
+        } catch (NumberFormatException e) {
+            training.setAverageHeartRate(null);
+        }
+
+        try {
+            training.setDistance(Integer.parseInt(strings[4]));
+            training.setSpeed(calculateSpeed(training.getDistance(), training.getDuration()));
+        } catch (Exception e) {
+            training.setDistance(null);
+            training.setSpeed(null);
+        }
+
+        try {
+            //Link to the source: http://frs24.ru/st/kalkulator-rashoda-kalorij-po-pulsu/
+            int calories = (int) Math.round(0.014 * user.getWeight() * training.getDuration() *
+                    (0.12 * training.getAverageHeartRate() - 7));
+            training.setCalories(calories);
+        } catch (Exception e) {
+            training.setCalories(null);
+        }
+        List<Training> trainings = user.getTrainings();
+        trainings.add(training);
+        user.setTrainings(trainings);
+        user.setCondition(0);
+        return training;
     }
 
     public static double calculateSpeed(double distanceMeters, double timeMinutes) {
