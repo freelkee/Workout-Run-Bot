@@ -36,8 +36,8 @@ public class Training {
                 "Date: " + new SimpleDateFormat("dd.MM.yyyy/HH.mm").format(date) + "\n" +
                 "Average Heart Rate: " + averageHeartRate + " bpm\n" +
                 "Distance: " + distance + " meters\n" +
-                "Duration: " + duration + "min\n" +
-                "Calories: " + calories + "ccal\n" +
+                "Duration: " + duration + " min\n" +
+                "Calories: " + calories + " ccal\n" +
                 "Speed: " + speed + " km/h" + "\n";
     }
 }

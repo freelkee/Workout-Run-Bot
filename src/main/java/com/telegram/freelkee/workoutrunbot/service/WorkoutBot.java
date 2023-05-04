@@ -35,8 +35,6 @@ import java.util.*;
 @Component
 @Slf4j
 public class WorkoutBot extends TelegramLongPollingBot {
-
-    private Map<Long, Long> userUpdateTraining = new HashMap<>();
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -166,29 +164,29 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 if (messageText.equals("exit")) {
                     user.setCondition(0);
                     userRepository.save(user);
-                }
-                newWorkoutCommandReceived(message, user);
+                } else
+                    newWorkoutCommandReceived(message, user);
             } else if (user.getCondition() > 4 && user.getCondition() <= 9) {
                 //update workout
                 if (messageText.equals("exit")) {
                     user.setCondition(0);
                     userRepository.save(user);
-                }
-                updateWorkoutCommandReceived(message, user);
+                } else
+                    updateWorkoutCommandReceived(message, user);
             } else if (user.getCondition() >= 10 && user.getCondition() <= 19) {
                 //settings
                 if (messageText.equals("exit")) {
                     user.setCondition(0);
                     userRepository.save(user);
-                }
-                setting(message, user);
+                } else
+                    setting(message, user);
             } else if (user.getCondition() >= 20 && user.getCondition() <= 29) {
                 //my workouts
                 if (messageText.equals("exit")) {
                     user.setCondition(0);
                     userRepository.save(user);
-                }
-                myWorkoutsCommandReceived(message, user);
+                } else
+                    myWorkoutsCommandReceived(message, user);
             }
         } else if (update.hasCallbackQuery()) {
             CallbackQuery callbackQuery = update.getCallbackQuery();
@@ -260,7 +258,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                             training.getAverageHeartRate() + "\n" +
                             training.getDistance() + "\n";
                     executeEditMessageText((int) messageId, chatId, editMessageText, text);
-                    userUpdateTraining.put(user.getChatId(), id);
+                    user.setUpdateTrainingId(id);
                     userRepository.save(user);
                 }
 
@@ -273,26 +271,31 @@ public class WorkoutBot extends TelegramLongPollingBot {
     }
 
     private void updateWorkoutCommandReceived(Message message, User user) throws ParseException {
-//        switch (user.getCondition()) {
-//            case 5 -> {
-//                String text = message.getText();
-//                Long trainingId = userUpdateTraining.get(user.getChatId());
-//                Training training = trainingRepository.findById(trainingId).orElse(null);
-//
-//                if (training == null) {
-//                    // Обработка случая, когда объект training не найден
-//                    // Можно выдать сообщение об ошибке или создать новый объект Training
-//                    // training = new Training();
-//                } else {
-//                    setTraining(user, text, training);
-//                    userUpdateTraining.remove(user.getChatId());
-//                    userRepository.save(user);
-//                    log.info("User " + user.getUserName() + " recorded workout " + training.getId());
-//                    sendMessage(message.getChatId(), "Your workout was recorded.");
-//                    trainingRepository.save(training); // Сохранение после обновления объекта Training
-//                }
-//            }
-//        }
+        switch (user.getCondition()) {
+            case 5 -> {
+                String text = message.getText();
+                Long trainingId = user.getUpdateTrainingId();
+
+                Training training = trainingRepository.findById(trainingId).orElse(null);
+//                user.trainings.remove(training);
+                userRepository.save(user);
+                if (training == null) {
+                    // Обработка случая, когда объект training не найден
+                    // Можно выдать сообщение об ошибке или создать новый объект Training
+                    // training = new Training();
+                } else {
+                    setTrainingByText(user, text, training);
+                    
+                    user.setCondition(0);
+                    user.setUpdateTrainingId(null);
+                    userRepository.save(user);
+
+                    trainingRepository.save(training); // Сохранение после обновления объекта Training
+                    log.info("User " + user.getUserName() + " updated workout " + training.getId());
+                    sendMessage(message.getChatId(), "Your workout was updated.");
+                }
+            }
+        }
     }
 
     private void settingsCommandRecieved(User user) {
@@ -446,7 +449,9 @@ public class WorkoutBot extends TelegramLongPollingBot {
             }
             case 2 -> {
                 Training training = new Training();
-                setTraining(user, text, training);
+                setTrainingByText(user, text, training);
+                user.trainings.add(training);
+                user.setCondition(0);
                 trainingRepository.save(training);
                 userRepository.save(user);
                 log.info("User " + user.getUserName() + "  recorded workout " + training.getId());
@@ -457,7 +462,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
         }
     }
 
-    private static Training setTraining(User user, String text, Training training) throws ParseException {
+    private static void setTrainingByText(User user, String text, Training training) throws ParseException {
         String[] strings = text.split("\n");
 
         training.setTrainingType(strings[0]);
@@ -486,12 +491,9 @@ public class WorkoutBot extends TelegramLongPollingBot {
         } catch (Exception e) {
             training.setCalories(null);
         }
-        List<Training> trainings = user.getTrainings();
-        trainings.add(training);
-        user.setTrainings(trainings);
-        user.setCondition(0);
-        return training;
     }
+
+
 
     public static double calculateSpeed(double distanceMeters, double timeMinutes) {
         double timeHours = timeMinutes / 60;

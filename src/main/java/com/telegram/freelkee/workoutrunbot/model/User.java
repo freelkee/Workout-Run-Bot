@@ -1,6 +1,7 @@
 package com.telegram.freelkee.workoutrunbot.model;
 
 import jakarta.persistence.*;
+
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,9 +24,10 @@ public class User {
     private Integer weight;
     private Integer height;
     private Integer age;
+    private Long updateTrainingId;
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
-    private List<Training> trainings;
+    public List<Training> trainings;
 
 
     @Override
