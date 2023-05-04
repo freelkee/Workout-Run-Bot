@@ -14,11 +14,9 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
-import org.telegram.telegrambots.meta.api.objects.CallbackQuery;
-import org.telegram.telegrambots.meta.api.objects.Chat;
-import org.telegram.telegrambots.meta.api.objects.Message;
-import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.*;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
@@ -27,6 +25,8 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -37,8 +37,6 @@ import java.util.*;
 public class WorkoutBot extends TelegramLongPollingBot {
     @Autowired
     private UserRepository userRepository;
-    @Autowired
-    private AdsRepository adsRepository;
     @Autowired
     private TrainingRepository trainingRepository;
 
@@ -156,6 +154,12 @@ public class WorkoutBot extends TelegramLongPollingBot {
                         assert user != null;
                         settingsCommandRecieved(user);
                     }
+                    case "/statistics" -> {
+                        assert user != null;
+                        user.setCondition(25);
+                        userRepository.save(user);
+                        responseForStatistics(message, user);
+                    }
 
                     default -> sendMessage(chatId, "Sorry,command was not recognized");
                 }
@@ -166,7 +170,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     userRepository.save(user);
                 } else
                     newWorkoutCommandReceived(message, user);
-            } else if (user.getCondition() > 4 && user.getCondition() <= 9) {
+            } else if (user.getCondition() >= 5 && user.getCondition() <= 9) {
                 //update workout
                 if (messageText.equals("exit")) {
                     user.setCondition(0);
@@ -180,13 +184,19 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     userRepository.save(user);
                 } else
                     setting(message, user);
-            } else if (user.getCondition() >= 20 && user.getCondition() <= 29) {
+            } else if (user.getCondition() >= 20 && user.getCondition() <= 24) {
                 //my workouts
                 if (messageText.equals("exit")) {
                     user.setCondition(0);
                     userRepository.save(user);
                 } else
                     myWorkoutsCommandReceived(message, user);
+            } else if (user.getCondition() >= 25 && user.getCondition() <= 29) {
+                if (messageText.equals("exit")) {
+                    user.setCondition(0);
+                    userRepository.save(user);
+                } else
+                    responseForStatistics(message, user);
             }
         } else if (update.hasCallbackQuery()) {
             CallbackQuery callbackQuery = update.getCallbackQuery();
@@ -270,30 +280,121 @@ public class WorkoutBot extends TelegramLongPollingBot {
         }
     }
 
-    private void updateWorkoutCommandReceived(Message message, User user) throws ParseException {
+    private void responseForStatistics(Message message, User user) {
         switch (user.getCondition()) {
-            case 5 -> {
-                String text = message.getText();
-                Long trainingId = user.getUpdateTrainingId();
+            case 25 -> {
+                user.setCondition(26);
+                sendMessage(user.getChatId(), """
+                        Specify the number of recent workouts for which you want to get statistics and the training parameter for which statistics will be generated. Data entry format:
+                        The number of workouts as a number (for example 7)
+                        Parameter (for example "duration")""");
+            }
+            case 26 -> {
+                String[] strings = message.getText().split("\n");
 
-                Training training = trainingRepository.findById(trainingId).orElse(null);
-//                user.trainings.remove(training);
-                userRepository.save(user);
-                if (training == null) {
-                    // Обработка случая, когда объект training не найден
-                    // Можно выдать сообщение об ошибке или создать новый объект Training
-                    // training = new Training();
-                } else {
-                    setTrainingByText(user, text, training);
-                    
-                    user.setCondition(0);
-                    user.setUpdateTrainingId(null);
-                    userRepository.save(user);
+                SendPhoto sendPhoto = new SendPhoto();
+                sendPhoto.setChatId(user.getChatId());
+                sendPhoto.setPhoto(new InputFile(generateChartUrl(user.getTrainings().stream().limit(Long.parseLong(strings[0])).toList(), strings[1])));
 
-                    trainingRepository.save(training); // Сохранение после обновления объекта Training
-                    log.info("User " + user.getUserName() + " updated workout " + training.getId());
-                    sendMessage(message.getChatId(), "Your workout was updated.");
+                try {
+                    execute(sendPhoto);
+                } catch (TelegramApiException e) {
+                    e.printStackTrace();
                 }
+                user.setCondition(0);
+            }
+
+        }
+        userRepository.save(user);
+
+    }
+
+    public static String generateChartUrl(List<Training> trainingList, String dataType) {
+        StringBuilder dataBuilder = new StringBuilder();
+        StringBuilder labelsBuilder = new StringBuilder();
+
+        int minValue = Integer.MAX_VALUE;
+        int maxValue = Integer.MIN_VALUE;
+
+        SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy/HH.mm");
+
+        for (Training training : trainingList) {
+            // Получение значения данных в зависимости от типа
+            int dataValue = switch (dataType) {
+                case "distance" -> training.getDistance() == null ? 0 : training.getDistance();
+                case "speed" -> training.getSpeed() == null ? 0 : training.getSpeed().intValue();
+                case "heartRate" -> training.getAverageHeartRate() == null ? 0 : training.getAverageHeartRate();
+                case "duration" -> training.getDuration();
+                case "calories" -> training.getCalories() == null ? 0 : training.getCalories();
+                default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+
+
+            };
+
+            // Добавление значения данных и метки
+            dataBuilder.append(dataValue).append(",");
+            labelsBuilder.append(dateFormat.format(training.getDate())).append("|");
+
+            // Обновление минимального и максимального значения
+            if (dataValue < minValue) {
+                minValue = dataValue;
+            }
+            if (dataValue > maxValue) {
+                maxValue = dataValue;
+            }
+        }
+
+        // Удаление последней запятой у каждого билдера
+        removeTrailingComma(dataBuilder);
+        removeTrailingComma(labelsBuilder);
+
+        // Кодирование данных для URL-параметров
+        String data = URLEncoder.encode(dataBuilder.toString(), StandardCharsets.UTF_8);
+        String labels = URLEncoder.encode(labelsBuilder.toString(), StandardCharsets.UTF_8);
+
+        // Формирование URL-адреса графика
+
+        return "https://chart.googleapis.com/chart" +
+                "?cht=lc" +                  // Тип графика: линейный
+                "&chs=600x300" +             // Размер графика (ширина x высота)
+                "&chd=t:" + data +           // Данные
+                "&chxt=x,y" +                // Оси X и Y
+                "&chxl=0:|" + labels +       // Метки по оси X
+                "&chdl=" + dataType +        // Легенда
+                "&chco=FF0000" +             // Цвет графика (красный)
+                "&chxr=1," + minValue + "," + maxValue +  // Диапазон значений по оси Y
+                "&chds=" + minValue + "," + maxValue +    // Минимальное и максимальное значения по оси Y
+                "&chtt=" + dataType;
+    }
+
+    private static void removeTrailingComma(StringBuilder input) {
+        if (input.length() > 0) {
+            input.setLength(input.length() - 1);
+        }
+    }
+
+    private void updateWorkoutCommandReceived(Message message, User user) throws ParseException {
+        if (user.getCondition() == 5) {
+            String text = message.getText();
+            Long trainingId = user.getUpdateTrainingId();
+
+            Training training = trainingRepository.findById(trainingId).orElse(null);
+//                user.trainings.remove(training);
+            userRepository.save(user);
+            if (training == null) {
+                // Обработка случая, когда объект training не найден
+                // Можно выдать сообщение об ошибке или создать новый объект Training
+                // training = new Training();
+            } else {
+                setTrainingByText(user, text, training);
+
+                user.setCondition(0);
+                user.setUpdateTrainingId(null);
+                userRepository.save(user);
+
+                trainingRepository.save(training); // Сохранение после обновления объекта Training
+                log.info("User " + user.getUserName() + " updated workout " + training.getId());
+                sendMessage(message.getChatId(), "Your workout was updated.");
             }
         }
     }
@@ -494,7 +595,6 @@ public class WorkoutBot extends TelegramLongPollingBot {
     }
 
 
-
     public static double calculateSpeed(double distanceMeters, double timeMinutes) {
         double timeHours = timeMinutes / 60;
         double distanceKilometers = distanceMeters / 1000;
@@ -691,15 +791,4 @@ public class WorkoutBot extends TelegramLongPollingBot {
         keyboardMarkup.setKeyboard(keyboardRows);
         message.setReplyMarkup(keyboardMarkup);
     }
-
-//    @Scheduled(cron = "${cron.scheduler}")
-//    private void sendAds() {
-//        var ads = adsRepository.findAll();
-//        var users = userRepository.findAll();
-//        for (Ads ad : ads) {
-//            for (User user : users) {
-//                sendMessage(user.getChatId(), ad.getAd());
-//            }
-//        }
-//    }
 }
