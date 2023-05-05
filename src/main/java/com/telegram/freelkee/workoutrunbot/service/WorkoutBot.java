@@ -6,7 +6,7 @@ import com.telegram.freelkee.workoutrunbot.model.User;
 import com.telegram.freelkee.workoutrunbot.repository.TrainingRepository;
 import com.telegram.freelkee.workoutrunbot.repository.UserRepository;
 import com.vdurmont.emoji.EmojiParser;
-import jakarta.transaction.Transactional;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
@@ -175,17 +175,17 @@ public class WorkoutBot extends TelegramLongPollingBot {
             }
         } else if (callbackData.equals(WEIGHT_BUTTON)) {
             user.setCondition(10);
-            sendMessage(chatId, "Enter your weight in kilograms");
+            sendMessage(chatId, "Enter your weight in kilograms.");
             userRepository.save(user);
 
         } else if (callbackData.equals(HEIGHT_BUTTON)) {
             user.setCondition(11);
-            sendMessage(chatId, "Enter your height in centimeters");
+            sendMessage(chatId, "Enter your height in centimeters.");
             userRepository.save(user);
 
         } else if (callbackData.equals(AGE_BUTTON)) {
             user.setCondition(12);
-            sendMessage(chatId, "Enter your age in years");
+            sendMessage(chatId, "Enter your age in years.");
             userRepository.save(user);
 
         } else if (callbackData.equals(MYDATA_BUTTON)) {
@@ -193,7 +193,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             sendMessage(chatId, "This is all the data we have about you:\n" + user);
             userRepository.save(user);
 
-        } else if (callbackData.equals("DEL")) {
+        } else if (callbackData.equals(DELETE_BUTTON)) {
             user.setCondition(14);
             deleteData(chatId);
             userRepository.save(user);
@@ -224,6 +224,13 @@ public class WorkoutBot extends TelegramLongPollingBot {
             trainingRepository.deleteById(id);
             executeEditMessageText((int) messageId, chatId, editMessageText, "Your training was deleted.");
         }
+    }
+    private void sendMessage(long chatId, String textToSend) {
+        SendMessage message = new SendMessage();
+        message.setChatId(chatId);
+        message.setText(textToSend);
+
+        executor(message);
     }
 
     private void commandsForNullUser(Message message, long chatId, String messageText) {
@@ -269,7 +276,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 userRepository.save(user);
                 statisticsResponse(message, user);
             }
-            default -> sendMessage(chatId, "Sorry,command was not recognized");
+            default -> sendMessage(chatId, "Sorry,command was not recognized.");
         }
     }
 
@@ -323,10 +330,18 @@ public class WorkoutBot extends TelegramLongPollingBot {
                     log.error(ERROR_TEXT + e.getMessage());
                     return;
                 }
-                user.trainings.add(training);
-                user.setCondition(0);
-                trainingRepository.save(training);
-                userRepository.save(user);
+                try {
+                    user.trainings.add(training);
+                    user.setCondition(0);
+                    trainingRepository.save(training);
+                    userRepository.save(user);
+                }
+                catch (Exception e){
+                    sendMessage(chatId, ERROR_TEXT + e.getMessage() + TRY_AGAIN_TEXT);
+                    log.error(ERROR_TEXT + e.getMessage());
+                    return;
+                }
+
                 log.info("User " + user.getFirstName() + "  recorded training " + training.getId());
                 sendMessage(chatId, "Your training was recorded.");
 
@@ -382,7 +397,6 @@ public class WorkoutBot extends TelegramLongPollingBot {
             }
         }
     }
-
     private void myTrainingsCommandResponse(Message message, User user) {
         Long chatId = user.getChatId();
         String text = message.getText().trim().toLowerCase();
@@ -410,12 +424,12 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 }
 
                 if (trainings.size() == 0) {
-                    sendMessage(chatId, "You don't have a record, try to record a new one using the /newtraining command");
+                    sendMessage(chatId, "You don't have a record, try to record a new one using the /newtraining command.");
                     user.setCondition(0);
                     userRepository.save(user);
                     return;
                 }
-                sendMessage(chatId, "Here are your " + trainings.size() + " trainings sorted by date");
+                sendMessage(chatId, "Here are your " + trainings.size() + " trainings sorted by date.");
 
                 InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
                 SendMessage sendMessage = new SendMessage();
@@ -444,7 +458,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 }
                 user.setCondition(0);
                 userRepository.save(user);
-                log.info("the user " + user.getFirstName() + " received a list of trainings");
+                log.info("the user " + user.getFirstName() + " received a list of trainings.");
             }
         }
 
@@ -461,7 +475,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
                         The number of trainings (for example 7)
                         Parameter (distance/speed/heart rate/duration/calories)
                                                   
-                        You are in statistics mode, click "exit" if you want to exit""";
+                        You are in statistics mode, click "exit" if you want to exit.""";
 
                 SendMessage sendMessage = new SendMessage(String.valueOf(user.getChatId()), textToSend);
                 verticalKeyboard(sendMessage, new String[]{"exit"});
@@ -563,10 +577,16 @@ public class WorkoutBot extends TelegramLongPollingBot {
     }
 
     private void updateData(User user) {
-        user.setCondition(0);
-        userRepository.save(user);
-        sendMessage(user.getChatId(), "Your data was update.");
-        startCommandReceived(user.getChatId());
+        try {
+            user.setCondition(0);
+            userRepository.save(user);
+            sendMessage(user.getChatId(), "Your data was update.");
+            startCommandReceived(user.getChatId());
+        }
+        catch (Exception e){
+            sendMessage(user.getChatId(), ERROR_TEXT + e.getMessage() + TRY_AGAIN_TEXT);
+            log.error(ERROR_TEXT + e.getMessage());
+        }
     }
 
     public static double calculateSpeed(double distanceMeters, double timeMinutes) {
@@ -595,10 +615,10 @@ public class WorkoutBot extends TelegramLongPollingBot {
         int minValue = Integer.MAX_VALUE;
         int maxValue = Integer.MIN_VALUE;
 
-        SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yy");
+        //SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yy");
 
         for (Training training : trainingList) {
-            // Получение значения данных в зависимости от типа
+            // Getting the data value depending on the type
             int dataValue = switch (dataType) {
                 case "distance" -> training.getDistance() == null ? 0 : training.getDistance();
                 case "speed" -> training.getSpeed() == null ? 0 : training.getSpeed().intValue();
@@ -608,11 +628,11 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             };
 
-            // Добавление значения данных и метки
+            // Adding data values and labels
             dataBuilder.append(dataValue).append(",");
             labelsBuilder.append(convertTimestampToString(training.getDate())).append("|");
 
-            // Обновление минимального и максимального значения
+            // Updating the minimum and maximum values
             if (dataValue < minValue) {
                 minValue = dataValue;
             }
@@ -621,29 +641,28 @@ public class WorkoutBot extends TelegramLongPollingBot {
             }
         }
 
-        // Удаление последней запятой у каждого билдера
+        // Removing the last comma from each builder
         removeTrailingComma(dataBuilder);
         removeTrailingComma(labelsBuilder);
 
-        // Кодирование данных для URL-параметров
+        // Encoding data for URL parameters
         String data = URLEncoder.encode(dataBuilder.toString(), StandardCharsets.UTF_8);
         String labels = URLEncoder.encode(labelsBuilder.toString(), StandardCharsets.UTF_8);
 
-        // Формирование URL-адреса графика
+        // Formation of the graph URL
         return "https://chart.googleapis.com/chart" +
-                "?cht=bvg" +                      // Тип графика: столбчатая диаграмма (столбики)
-                "&chs=800x300" +                 // Размер графика (ширина x высота)
-                "&chd=t:" + data +               // Данные
-                "&chxt=x,y" +                    // Оси X и Y
-                "&chxl=0:|" + labels +           // Метки по оси X
-                "&chdl=" + dataType +            // Легенда
-                "&chco=FF0000" +                 // Цвет графика (красный)
-                "&chxr=1," + 0 + "," + maxValue +// Диапазон значений по оси Y
-                "&chds=" + 0 + "," + maxValue +  // Минимальное и максимальное значения по оси Y
-                "&chtt=" + dataType +            // Заголовок графика
-                "&chg=10,10,1,1" +               // Параметры сетки: длина и промежутки линий
-                "&chbh=a";                       // Ширина столбцов графика
-        // Параметры сетки: длина и промежутки линий
+                "?cht=bvg" +                     // Graph type: bar chart (columns)
+                "&chs=800x300" +                 // Graph size (width x height)
+                "&chd=t:" + data +               // Data
+                "&chxt=x,y" +                    // X and Y axes
+                "&chxl=0:|" + labels +           // X-axis labels
+                "&chdl=" + dataType +            // Legend
+                "&chco=FF0000" +                 // Chart color (red)
+                "&chxr=1," + 0 + "," + maxValue +// Range of values along the Y axis
+                "&chds=" + 0 + "," + maxValue +  // Minimum and maximum values on the Y axis
+                "&chtt=" + dataType +            // Chart Title
+                "&chg=10,10,1,1" +               // Grid parameters: length and line spacing
+                "&chbh=a";                       // Width of graph columns
     }
 
     private static void removeTrailingComma(StringBuilder input) {
@@ -821,31 +840,19 @@ public class WorkoutBot extends TelegramLongPollingBot {
             button3.setCallbackData(AGE_BUTTON);
             level1.add(button3);
         }
-
         rows.add(level1);
         inlineKeyboardMarkup.setKeyboard(rows);
 
         if (flag) {
             SendMessage message = new SendMessage();
             message.setChatId(chatId);
-            message.setText("Please enter your parameters for more accurate tracking");
+            message.setText("Please enter your parameters for more accurate tracking.");
             message.setReplyMarkup(inlineKeyboardMarkup);
             executor(message);
         } else {
             String answer = EmojiParser.parseToUnicode("Great, now we can get started. To record a new training, send the command /newtraining");
             sendMessage(chatId, answer);
         }
-
-
         log.info("Replied to user " + user.getFirstName());
-
-    }
-
-    private void sendMessage(long chatId, String textToSend) {
-        SendMessage message = new SendMessage();
-        message.setChatId(chatId);
-        message.setText(textToSend);
-
-        executor(message);
     }
 }

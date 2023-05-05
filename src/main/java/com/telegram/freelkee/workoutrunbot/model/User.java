@@ -2,6 +2,8 @@ package com.telegram.freelkee.workoutrunbot.model;
 
 import jakarta.persistence.*;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -21,14 +23,23 @@ public class User {
     private String userName;
     private Timestamp registeredAt;
     private int condition;
+
+
+    @Min(value = 1, message = "Weight must be a positive value")
+    @Max(value = 700, message = "Too much weight")
     private Integer weight;
+
+    @Min(value = 1, message = "Height must be a positive value")
+    @Max(value = 300, message = "Too much height")
     private Integer height;
+
+    @Min(value = 1, message = "Age must be a positive value")
+    @Max(value = 300, message = "Too old")
     private Integer age;
     private Long updateTrainingId;
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
     public List<Training> trainings;
-
 
     @Override
     public String toString() {

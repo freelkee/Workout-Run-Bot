@@ -1,6 +1,9 @@
 package com.telegram.freelkee.workoutrunbot.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -8,10 +11,6 @@ import lombok.Setter;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 
-
-//@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
-//@DiscriminatorColumn(name="training_type",   discriminatorType = DiscriminatorType.STRING)
-//@DiscriminatorValue("null")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -21,12 +20,24 @@ public class Training {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @NotNull(message = "Date is required")
     private Timestamp date;
+
+    @NotNull(message = "Duration is required")
+    @Min(value = 1, message = "Duration must be a positive value")
     private Integer duration;
     private Integer calories;
+
+    @Min(value = 1, message = "Average Heart Rate must be a positive value")
+    @Max(value = 240, message = "Average Heart Rate is too high")
     private Integer averageHeartRate;
+
+    @Min(value = 1, message = "Distance must be a positive value")
     private Integer distance;
     private Double speed;
+//    @NotNull(message = "Training Type is required")
+//    @Pattern(regexp = "^(run|workout)$", message = "Training Type must be either 'run' or 'workout'")
     private String trainingType;
 
     @Override
