@@ -165,8 +165,10 @@ public class WorkoutBot extends TelegramLongPollingBot {
             executeEditMessageText((int) messageId, chatId, editMessageText, text);
 
         } else if (callbackData.equals(NO_BUTTON)) {
+            user.setCondition(0);
             String text = "You pressed NO button";
             executeEditMessageText((int) messageId, chatId, editMessageText, text);
+            userRepository.save(user);
 
         } else if (callbackData.equals(FINALLY_DELETE_BUTTON)) {
             if (deleteDataCommandReceived(chatId)) {
@@ -703,12 +705,12 @@ public class WorkoutBot extends TelegramLongPollingBot {
         level2.add(button4);
 
         var button5 = new InlineKeyboardButton();
-        button5.setText("Delete my data");
+        button5.setText("Delete data");
         button5.setCallbackData(DELETE_BUTTON);
         level2.add(button5);
 
         var button6 = new InlineKeyboardButton();
-        button6.setText("Connect a third-party API");
+        button6.setText("Connect API");
         button6.setCallbackData(API_BUTTON);
         level2.add(button6);
 
