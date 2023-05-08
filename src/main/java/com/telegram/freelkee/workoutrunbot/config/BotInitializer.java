@@ -1,6 +1,6 @@
 package com.telegram.freelkee.workoutrunbot.config;
 
-import com.telegram.freelkee.workoutrunbot.service.WorkoutBot;
+import com.telegram.freelkee.workoutrunbot.service.TrainingBot;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -14,7 +14,7 @@ import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 @Component
 public class BotInitializer {
     @Autowired
-    WorkoutBot bot;
+    TrainingBot bot;
 
     @EventListener({ContextRefreshedEvent.class})
     public void init() throws TelegramApiException {
