@@ -20,12 +20,14 @@ import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.sql.Timestamp;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
 @RunWith(SpringRunner.class)
@@ -35,17 +37,17 @@ class TrainingBotTest {
     private TrainingBot trainingBot;
     @MockBean
     private UserRepository userRepository;
-    private TrainingBot mockTrainingBot;
-    private final Message message = new Message();
-    private User user = new User();
-    private final Chat chat = new Chat();
     @MockBean
     private TrainingRepository trainingRepository;
-
-
+    private TrainingBot mockTrainingBot;
+    private final Message message = new Message();
+    private final Chat chat = new Chat();
+    private User user = new User();
+    private final Training training = new Training();
     @BeforeEach
-    public void setup() {
+    public void setup() throws ParseException {
         mockTrainingBot = Mockito.spy(trainingBot);
+
         Mockito.doNothing().when(mockTrainingBot).sendMessage(Mockito.anyLong(), Mockito.anyString());
 
         chat.setFirstName("John");
@@ -58,12 +60,16 @@ class TrainingBotTest {
         user.setFirstName(message.getChat().getFirstName());
         user.setCondition(0);
 
+        training.setTrainingType("run");
+        training.setDistance(10000);
+        training.setDuration(60);
+        training.setAverageHeartRate(160);
+        training.setDate(TrainingBot.convertStringToTimestamp("09.05.23/07.12"));
     }
 
     @Test
     void registerUserWhenNotExist() {
         Mockito.when(userRepository.findById(1L)).thenReturn(Optional.empty());
-        Mockito.doNothing().when(mockTrainingBot).sendMessage(Mockito.anyLong(), Mockito.anyString());
 
         boolean isRegister = mockTrainingBot.registerUser(message);
         Assert.assertTrue(isRegister);
@@ -77,7 +83,6 @@ class TrainingBotTest {
                 "We have created your profile in the database, " +
                         "now you can save your trainings and use all the functionality of the service. " +
                         "But we need some more of your data.");
-
     }
 
     @Test
@@ -134,12 +139,9 @@ class TrainingBotTest {
     }
 
     @Test
-    void buttonBlock() {
-    }
-
-    @Test
     @Disabled
     void sendMessage() throws TelegramApiException {
+        Mockito.reset(mockTrainingBot);
         SendMessage sendMessage = new SendMessage();
         sendMessage.setChatId(chat.getId());
         sendMessage.setText("123456");
@@ -150,7 +152,7 @@ class TrainingBotTest {
 
     @Test
     void sendMessageToAllUsersTest() {
-        // arrange
+
         User user1 = new User();
         user1.setChatId(2L);
         user1.setUserName("Steve");
@@ -165,36 +167,31 @@ class TrainingBotTest {
 
         Mockito.when(userRepository.findAll()).thenReturn(Arrays.asList(user, user1, user2));
         String messageText = "/send Hello, users!";
-        // act
+
         mockTrainingBot.sendMessageToAllUsers(messageText);
 
-        // assert
         Mockito.verify(mockTrainingBot, Mockito.times(3))
                 .sendMessage(Mockito.anyLong(), Mockito.eq("Hello, users!"));
     }
 
     @Test
-    public void newTrainingResponse() throws ParseException {
+    public void newTrainingResponse() {
         user.setCondition(2);
         user.setTrainings(new ArrayList<>());
 
-        Training training = new Training();
-        training.setTrainingType("run");
-        training.setDistance(10000);
-        training.setDuration(60);
-        training.setAverageHeartRate(160);
-        training.setDate(TrainingBot.convertStringToTimestamp("09.05.23/07.12"));
-
-        Message message = new Message();
         message.setText("run\n60\n09.05.23/07.12\n160\n10000");
 
         Mockito.when(userRepository.save(user)).thenReturn(user);
         Mockito.when(trainingRepository.save(training)).thenReturn(training);
 
         mockTrainingBot.newTrainingResponse(message, user);
+        try {
+            training.setSpeed(TrainingBot.calculateSpeed(training.getDistance(), training.getDuration()));
+        } catch (Exception e) {
+            training.setSpeed(null);
+        }
 
-
-        assertEquals(1, user.getTrainings().size()); // quick fix
+        assertTrue(user.getTrainings().contains(training));
         Mockito.verify(userRepository, Mockito.times(1)).save(user);
         Mockito.verify(trainingRepository, Mockito.times(1)).save(Mockito.any(Training.class));
         Mockito.verify(mockTrainingBot, Mockito.times(1))
@@ -204,33 +201,77 @@ class TrainingBotTest {
 
     @Test
     void updateTrainingResponse() {
-    }
+        training.setId(1L);
 
-    @Test
-    void setTrainingByText() {
+        message.setText("run\n50\n09.05.23/07.12\n160\n10000");
+
+        user.setTrainings(new ArrayList<>());
+        user.trainings.add(training);
+        user.setUpdateTrainingId(1L);
+        user.setCondition(5);
+
+        Mockito.when(userRepository.findById(1L)).thenReturn(Optional.ofNullable(user));
+        Mockito.when(trainingRepository.findById(1L)).thenReturn(Optional.of(training));
+
+        mockTrainingBot.updateTrainingResponse(message, user);
+
+        InOrder inOrder = Mockito.inOrder(userRepository, trainingRepository,mockTrainingBot);
+        inOrder.verify(trainingRepository, Mockito.times(1)).findById(training.getId());
+        inOrder.verify(userRepository, Mockito.times(2)).save(user);
+        inOrder.verify(trainingRepository, Mockito.times(1)).save(training);
+        inOrder.verify(mockTrainingBot, Mockito.times(1))
+                .sendMessage(chat.getId(), "Your training was updated.");
     }
 
     @Test
     void calculateSpeed() {
+        double distanceMeters = 1000.0;
+        double timeMinutes = 60.0;
+        double expectedSpeed = 1.0; // km/hour
+
+        double actualSpeed = TrainingBot.calculateSpeed(distanceMeters, timeMinutes);
+        assertEquals(expectedSpeed, actualSpeed, 0.001);
     }
 
     @Test
-    void convertStringToTimestamp() {
+    void convertStringToTimestamp() throws ParseException {
+        String dateString = "10.05.23/13.30";
+        long expectedTime = 1683714600000L;
+        Timestamp actualTimestamp = TrainingBot.convertStringToTimestamp(dateString);
+
+        assertEquals(expectedTime, actualTimestamp.getTime());
     }
 
     @Test
-    void convertTimestampToString() {
+    void convertTimestampToString() throws ParseException {
+        String dateString = "01.01.22/12.30";
+        Timestamp timestamp = TrainingBot.convertStringToTimestamp(dateString);
+        String expected = "01.01.22/12.30";
+        String result = TrainingBot.convertTimestampToString(timestamp);
+        assertEquals(expected, result);
     }
 
     @Test
-    void deleteData() {
+    void deleteDataCommandReceived() {
+        Mockito.when(userRepository.findById(1L)).thenReturn(Optional.ofNullable(user));
+
+        boolean isDelete = mockTrainingBot.deleteDataCommandReceived(user.getChatId());
+        Assert.assertTrue(isDelete);
+
+        InOrder inOrder = Mockito.inOrder(userRepository, mockTrainingBot);
+        inOrder.verify(userRepository, Mockito.times(1)).findById(chat.getId());
+        inOrder.verify(userRepository, Mockito.times(1)).delete(user);
     }
 
     @Test
     void myDataCommandReceived() {
-    }
+        Mockito.when(userRepository.findById(1L)).thenReturn(Optional.ofNullable(user));
 
-    @Test
-    void startCommandReceived() {
+        mockTrainingBot.myDataCommandReceived(message);
+
+        InOrder inOrder = Mockito.inOrder(userRepository, mockTrainingBot);
+        inOrder.verify(userRepository, Mockito.times(1)).findById(chat.getId());
+        inOrder.verify(mockTrainingBot, Mockito.times(1))
+                .sendMessage(message.getChatId(), user.toString());
     }
 }
