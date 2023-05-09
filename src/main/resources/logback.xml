@@ -20,6 +20,9 @@
         </encoder>
     </appender>
 
+    <!-- Отключение вывода логов для тестов -->
+    <logger name="src.test.java.com.telegram.freelkee.workoutrunbot.service.TrainingBotTest" level="OFF"/>
+
     <logger name="freelkee.WorkoutRunBot" level="debug" additivity="false">
         <appender-ref ref="FILE-ROLLING"/>
     </logger>

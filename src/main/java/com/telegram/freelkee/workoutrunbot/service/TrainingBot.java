@@ -33,7 +33,7 @@ import java.util.*;
 
 @Component
 @Slf4j
-public class WorkoutBot extends TelegramLongPollingBot {
+public class TrainingBot extends TelegramLongPollingBot {
 
     private final UserRepository userRepository;
     private final TrainingRepository trainingRepository;
@@ -93,7 +93,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
     static final String ERROR_TEXT = "Error occurred: ";
     static final String TRY_AGAIN_TEXT = ", try again or sent \"exit\".";
 
-    public WorkoutBot(BotConfig config, UserRepository userRepository, TrainingRepository trainingRepository) {
+    public TrainingBot(BotConfig config, UserRepository userRepository, TrainingRepository trainingRepository) {
         this.config = config;
         List<BotCommand> listOfCommands = new ArrayList<>();
         listOfCommands.add(new BotCommand("/start", "get a welcome message"));
@@ -115,14 +115,11 @@ public class WorkoutBot extends TelegramLongPollingBot {
     public String getBotUsername() {
         return config.getBotName();
     }
-
     @Override
     public String getBotToken() {
         return config.getToken();
     }
-
     @Override
-    //@Transactional
     public void onUpdateReceived(Update update) {
         Message message = update.getMessage();
         if (update.hasMessage() && message.hasText()) {
@@ -131,8 +128,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             buttonBlock(update);
         }
     }
-
-    private void replyToUsersMessages(Message message) {
+    public void replyToUsersMessages(Message message) {
         long chatId = message.getChatId();
         User user = userRepository.findByChatId(chatId);
         String messageText = message.getText();
@@ -149,8 +145,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             nonZeroConditionBlock(message, chatId, user, messageText);
         }
     }
-
-    private void buttonBlock(Update update) {
+    public void buttonBlock(Update update) {
         CallbackQuery callbackQuery = update.getCallbackQuery();
         long messageId = callbackQuery.getMessage().getMessageId();
         long chatId = callbackQuery.getMessage().getChatId();
@@ -227,15 +222,14 @@ public class WorkoutBot extends TelegramLongPollingBot {
             executeEditMessageText((int) messageId, chatId, editMessageText, "Your training was deleted.");
         }
     }
-    private void sendMessage(long chatId, String textToSend) {
+    public void sendMessage(long chatId, String textToSend) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(textToSend);
 
         executor(message);
     }
-
-    private void commandsForNullUser(Message message, long chatId, String messageText) {
+    public void commandsForNullUser(Message message, long chatId, String messageText) {
         if (messageText.trim().equalsIgnoreCase("/start")) {
             registerUser(message);
             startCommandReceived(chatId);
@@ -243,16 +237,14 @@ public class WorkoutBot extends TelegramLongPollingBot {
             sendMessage(chatId, "You are not registered at the moment, write /start to get started.");
         }
     }
-
-    private void sendMessageToAllUsers(String messageText) {
+    public void sendMessageToAllUsers(String messageText) {
         var textToSend = EmojiParser.parseToUnicode(messageText.substring(messageText.indexOf(" ")));
         var users = userRepository.findAll();
         for (User user1 : users) {
-            sendMessage(user1.getChatId(), textToSend);
+            sendMessage(user1.getChatId(), textToSend.trim());
         }
     }
-
-    private void zeroConditionBlock(Message message, long chatId, User user, String messageText) {
+    public void zeroConditionBlock(Message message, long chatId, User user, String messageText) {
         switch (messageText.trim().toLowerCase()) {
             case "/start" -> {
                 registerUser(message);
@@ -281,8 +273,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             default -> sendMessage(chatId, "Sorry,command was not recognized.");
         }
     }
-
-    private void nonZeroConditionBlock(Message message, long chatId, User user, String messageText) {
+    public void nonZeroConditionBlock(Message message, long chatId, User user, String messageText) {
         if (messageText.trim().equalsIgnoreCase("exit")) {
             exit(chatId, user);
 
@@ -302,8 +293,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             statisticsResponse(message, user);
         }
     }
-
-    private void exit(long chatId, User user) {
+    public void exit(long chatId, User user) {
         SendMessage sendMessage = new SendMessage(String.valueOf(chatId), "Your condition has changed.");
         ReplyKeyboardRemove replyKeyboardRemove = new ReplyKeyboardRemove();
         replyKeyboardRemove.setRemoveKeyboard(true);
@@ -312,8 +302,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
         userRepository.save(user);
         executor(sendMessage);
     }
-
-    private void newTrainingResponse(Message message, User user) {
+    public void newTrainingResponse(Message message, User user) {
         Long chatId = user.getChatId();
         String text = message.getText().trim().toLowerCase();
         switch (user.getCondition()) {
@@ -350,8 +339,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             }
         }
     }
-
-    private void updateTrainingResponse(Message message, User user) {
+    public void updateTrainingResponse(Message message, User user) {
         String text = message.getText().trim().toLowerCase();
         Long trainingId = user.getUpdateTrainingId();
         if (user.getCondition() == 5) {
@@ -379,8 +367,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             }
         }
     }
-
-    private void setting(Message message, User user) {
+    public void setting(Message message, User user) {
         Long chatId = user.getChatId();
         String text = message.getText().trim().toLowerCase();
         switch (user.getCondition()) {
@@ -399,7 +386,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             }
         }
     }
-    private void myTrainingsCommandResponse(Message message, User user) {
+    public void myTrainingsCommandResponse(Message message, User user) {
         Long chatId = user.getChatId();
         String text = message.getText().trim().toLowerCase();
         switch (user.getCondition()) {
@@ -465,8 +452,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
         }
 
     }
-
-    private void statisticsResponse(Message message, User user) {
+    public void statisticsResponse(Message message, User user) {
         String text = message.getText().trim().toLowerCase();
         switch (user.getCondition()) {
             case 25 -> {
@@ -518,8 +504,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
         }
         userRepository.save(user);
     }
-
-    private static void verticalKeyboard(SendMessage message, String[] args) {
+    public static void verticalKeyboard(SendMessage message, String[] args) {
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         List<KeyboardRow> keyboardRows = new ArrayList<>();
         KeyboardRow row = new KeyboardRow();
@@ -533,8 +518,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
         keyboardMarkup.setKeyboard(keyboardRows);
         message.setReplyMarkup(keyboardMarkup);
     }
-
-    private void executor(SendMessage message) {
+    public void executor(SendMessage message) {
         try {
             execute(message);
         } catch (TelegramApiException e) {
@@ -542,8 +526,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             log.error(ERROR_TEXT + e.getMessage());
         }
     }
-
-    private static void setTrainingByText(User user, String text, Training training) throws ParseException {
+    public static void setTrainingByText(User user, String text, Training training) throws ParseException {
         String[] strings = text.trim().toLowerCase().split("\n");
 
         for (int i = 0; i < strings.length; i++) {
@@ -577,8 +560,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             training.setCalories(null);
         }
     }
-
-    private void updateData(User user) {
+    public void updateData(User user) {
         try {
             user.setCondition(0);
             userRepository.save(user);
@@ -590,26 +572,22 @@ public class WorkoutBot extends TelegramLongPollingBot {
             log.error(ERROR_TEXT + e.getMessage());
         }
     }
-
     public static double calculateSpeed(double distanceMeters, double timeMinutes) {
         double timeHours = timeMinutes / 60;
         double distanceKilometers = distanceMeters / 1000;
         return distanceKilometers / timeHours;
     }
-
     public static Timestamp convertStringToTimestamp(String dateString) throws ParseException {
         String pattern = "dd.MM.yy/HH.mm";
         SimpleDateFormat dateFormat = new SimpleDateFormat(pattern);
         Date parsedDate = dateFormat.parse(dateString);
         return new Timestamp(parsedDate.getTime());
     }
-
     public static String convertTimestampToString(Timestamp timestamp) {
         String pattern = "dd.MM.yy/HH.mm";
         SimpleDateFormat dateFormat = new SimpleDateFormat(pattern);
         return dateFormat.format(timestamp);
     }
-
     public static String generateChartUrl(List<Training> trainingList, String dataType) {
         StringBuilder dataBuilder = new StringBuilder();
         StringBuilder labelsBuilder = new StringBuilder();
@@ -666,15 +644,12 @@ public class WorkoutBot extends TelegramLongPollingBot {
                 "&chg=10,10,1,1" +               // Grid parameters: length and line spacing
                 "&chbh=a";                       // Width of graph columns
     }
-
-    private static void removeTrailingComma(StringBuilder input) {
+    public static void removeTrailingComma(StringBuilder input) {
         if (input.length() > 0) {
             input.setLength(input.length() - 1);
         }
     }
-
-
-    private void settingsCommandResponse(User user) {
+    public void settingsCommandResponse(User user) {
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         List<InlineKeyboardButton> level1 = new ArrayList<>();
@@ -725,8 +700,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
 
         log.info("Settings sent to the user " + user.getFirstName());
     }
-
-    private void executeEditMessageText(int messageId, long chatId, EditMessageText message, String text) {
+    public void executeEditMessageText(int messageId, long chatId, EditMessageText message, String text) {
         message.setChatId(chatId);
         message.setText(text);
         message.setMessageId(messageId);
@@ -738,8 +712,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             log.error(ERROR_TEXT + e.getMessage());
         }
     }
-
-    private void deleteData(long chatId) {
+    public void deleteData(long chatId) {
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText("Do you really want to delete your data? THE DATA WILL BE IRRETRIEVABLY LOST!");
@@ -764,8 +737,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
 
         executor(message);
     }
-
-    private boolean deleteDataCommandReceived(long chatId) {
+    public boolean deleteDataCommandReceived(long chatId) {
         Optional<User> userOptional = userRepository.findById(chatId);
         if (userOptional.isPresent()) {
             User user = userOptional.get();
@@ -777,8 +749,7 @@ public class WorkoutBot extends TelegramLongPollingBot {
             return false;
         }
     }
-
-    private void myDataCommandReceived(Message message) {
+    public void myDataCommandReceived(Message message) {
         Optional<User> userOptional = userRepository.findById(message.getChatId());
         if (userOptional.isPresent()) {
             User user = userOptional.get();
@@ -788,33 +759,32 @@ public class WorkoutBot extends TelegramLongPollingBot {
             sendMessage(message.getChatId(), "Your data is not in the storage.");
         }
     }
-
-    private void registerUser(Message message) {
+    public boolean registerUser(Message message) {
+        long chatId = message.getChatId();
         String answer = EmojiParser.parseToUnicode("Hi, " + message.getChat().getFirstName() + ", welcome to the training tracking app!");
         sendMessage(message.getChatId(), answer);
 
-        if (userRepository.findById(message.getChatId()).isEmpty()) {
-            long chatId = message.getChatId();
+        if (userRepository.findById(chatId).isEmpty()) {
             Chat chat = message.getChat();
 
             User user = new User();
             user.setChatId(chatId);
             user.setUserName(chat.getUserName());
             user.setFirstName(chat.getFirstName());
-            user.setRegisteredAt(new Timestamp(System.currentTimeMillis()));
             user.setCondition(0);
 
             userRepository.save(user);
             log.info("User saves " + user.getFirstName());
-            sendMessage(message.getChatId(), "We have created your profile in the database, " +
+            sendMessage(chatId, "We have created your profile in the database, " +
                     "now you can save your trainings and use all the functionality of the service. " +
                     "But we need some more of your data.");
+            return true;
         } else {
             sendMessage(message.getChatId(), "You are already registered in the system.");
+            return false;
         }
     }
-
-    private void startCommandReceived(long chatId) {
+    public void startCommandReceived(long chatId) {
         InlineKeyboardMarkup inlineKeyboardMarkup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         List<InlineKeyboardButton> level1 = new ArrayList<>();

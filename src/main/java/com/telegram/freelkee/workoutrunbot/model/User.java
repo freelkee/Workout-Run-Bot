@@ -24,7 +24,6 @@ public class User {
     private Timestamp registeredAt;
     private int condition;
 
-
     @Min(value = 1, message = "Weight must be a positive value")
     @Max(value = 700, message = "Too much weight")
     private Integer weight;
@@ -40,6 +39,11 @@ public class User {
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
     public List<Training> trainings;
+
+    @PrePersist
+    protected void onCreate() {
+        registeredAt = new Timestamp(System.currentTimeMillis());
+    }
 
     @Override
     public String toString() {

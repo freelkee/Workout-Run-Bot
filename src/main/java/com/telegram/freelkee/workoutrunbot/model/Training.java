@@ -10,6 +10,7 @@ import lombok.Setter;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.util.Objects;
 
 @Getter
 @Setter
@@ -36,7 +37,7 @@ public class Training {
     @Min(value = 1, message = "Distance must be a positive value")
     private Integer distance;
     private Double speed;
-//    @NotNull(message = "Training Type is required")
+    //    @NotNull(message = "Training Type is required")
 //    @Pattern(regexp = "^(run|workout)$", message = "Training Type must be either 'run' or 'workout'")
     private String trainingType;
 
@@ -50,5 +51,24 @@ public class Training {
                 "Duration: " + duration + " min\n" +
                 "Calories: " + calories + " ccal\n" +
                 "Speed: " + speed + " km/h" + "\n";
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Training training = (Training) obj;
+        return Objects.equals(id, training.id) &&
+                Objects.equals(date, training.date) &&
+                Objects.equals(duration, training.duration) &&
+                Objects.equals(calories, training.calories) &&
+                Objects.equals(averageHeartRate, training.averageHeartRate) &&
+                Objects.equals(distance, training.distance) &&
+                Objects.equals(speed, training.speed) &&
+                Objects.equals(trainingType, training.trainingType);
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, date, duration, calories, averageHeartRate, distance, speed, trainingType);
     }
 }
