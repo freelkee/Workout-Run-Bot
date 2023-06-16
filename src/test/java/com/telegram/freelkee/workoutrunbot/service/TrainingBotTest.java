@@ -206,7 +206,7 @@ class TrainingBotTest {
         message.setText("run\n50\n09.05.23/07.12\n160\n10000");
 
         user.setTrainings(new ArrayList<>());
-        user.trainings.add(training);
+        user.addTtraining(training);
         user.setUpdateTrainingId(1L);
         user.setCondition(5);
 

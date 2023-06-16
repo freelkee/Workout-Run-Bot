@@ -38,7 +38,11 @@ public class User {
     private Long updateTrainingId;
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id")
-    public List<Training> trainings;
+    private List<Training> trainings;
+
+    public void addTtraining(Training training){
+        trainings.add(training);
+    }
 
     @PrePersist
     protected void onCreate() {

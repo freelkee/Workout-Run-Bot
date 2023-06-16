@@ -322,7 +322,7 @@ public class TrainingBot extends TelegramLongPollingBot {
                     return;
                 }
                 try {
-                    user.trainings.add(training);
+                    user.addTtraining(training);
                     user.setCondition(0);
                     trainingRepository.save(training);
                     userRepository.save(user);
