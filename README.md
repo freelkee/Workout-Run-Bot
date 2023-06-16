@@ -7,7 +7,6 @@ Workout-Run-Bot is a Telegram bot designed to assist users in tracking and manag
 - [Usage](#usage)
 - [Features](#features)
 - [Contributing](#contributing)
-- [License](#license)
 
 ## Installation
 
@@ -43,9 +42,9 @@ Once the bot is up and running, you can interact with it through Telegram. Searc
 The bot supports various commands and interactions to manage your workouts. Some of the available commands include:
 
 - `/start`: Start the bot and receive a welcome message.
-- `/new_training`: Record a new training session, providing details like date, duration, distance, and heart rate.
-- `/my_trainings`: View a list of your recorded training sessions.
-- `/analyze`: Get insights and statistics about your training data.
+- `/newtraining`: Record a new training session, providing details like date, duration, distance, and heart rate.
+- `/mytrainings`: View a list of your recorded training sessions.
+- `/statistics`: Get insights and statistics about your training data.
 
 Refer to the bot's responses and inline commands for more information on how to use specific features.
 
@@ -80,7 +79,3 @@ Contributions to the Workout-Run-Bot project are welcome! If you have any ideas,
 5. Submit a pull request.
 
 Please ensure that your code follows the project's coding style and conventions. Include clear descriptions and tests for your changes to facilitate the review process.
-
-## License
-
-The Workout-Run-Bot project is licensed under the [MIT License](https://github.com/freelkee/Workout-Run-Bot/blob/main/LICENSE). Feel free to modify and distribute the code as per the terms of the license.
